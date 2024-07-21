@@ -3,16 +3,21 @@ use bevy::{
     render::texture::{ImageLoaderSettings, ImageSampler},
     utils::HashMap,
 };
+use bevy_ecs_ldtk::{assets::LdtkProject, LdtkPlugin};
 
 pub(super) fn plugin(app: &mut App) {
-    app.register_type::<HandleMap<ImageKey>>();
-    app.init_resource::<HandleMap<ImageKey>>();
+    // app.register_type::<HandleMap<ImageKey>>();
+    // app.init_resource::<HandleMap<ImageKey>>();
 
     app.register_type::<HandleMap<SfxKey>>();
     app.init_resource::<HandleMap<SfxKey>>();
 
-    app.register_type::<HandleMap<SoundtrackKey>>();
-    app.init_resource::<HandleMap<SoundtrackKey>>();
+    // app.register_type::<HandleMap<SoundtrackKey>>();
+    // app.init_resource::<HandleMap<SoundtrackKey>>();
+
+    app.add_plugins(LdtkPlugin);
+    app.register_type::<HandleMap<LdtkKey>>();
+    app.init_resource::<HandleMap<LdtkKey>>();
 }
 
 #[derive(Copy, Clone, Eq, PartialEq, Hash, Reflect)]
@@ -76,29 +81,18 @@ impl FromWorld for HandleMap<SfxKey> {
 }
 
 #[derive(Copy, Clone, Eq, PartialEq, Hash, Reflect)]
-pub enum SoundtrackKey {
-    Credits,
-    Gameplay,
+pub enum LdtkKey {
+    Level,
 }
 
-impl AssetKey for SoundtrackKey {
-    type Asset = AudioSource;
+impl AssetKey for LdtkKey {
+    type Asset = LdtkProject;
 }
 
-impl FromWorld for HandleMap<SoundtrackKey> {
+impl FromWorld for HandleMap<LdtkKey> {
     fn from_world(world: &mut World) -> Self {
         let asset_server = world.resource::<AssetServer>();
-        [
-            (
-                SoundtrackKey::Credits,
-                asset_server.load("audio/soundtracks/Monkeys Spinning Monkeys.ogg"),
-            ),
-            (
-                SoundtrackKey::Gameplay,
-                asset_server.load("audio/soundtracks/Fluffing A Duck.ogg"),
-            ),
-        ]
-        .into()
+        [(LdtkKey::Level, asset_server.load("levels/test.ldtk"))].into()
     }
 }
 
