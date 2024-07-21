@@ -8,7 +8,7 @@ use bevy_jam_5::AppPlugin;
 
 fn main() -> AppExit {
     let mut app = App::new();
-    
+
     app.add_plugins(AppPlugin);
 
     #[cfg(feature = "dev_native")]
