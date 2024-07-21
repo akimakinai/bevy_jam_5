@@ -3,6 +3,7 @@
 //! - [Sprite flipping](https://github.com/bevyengine/bevy/blob/latest/examples/2d/sprite_flipping.rs)
 //! - [Sprite animation](https://github.com/bevyengine/bevy/blob/latest/examples/2d/sprite_animation.rs)
 //! - [Timers](https://github.com/bevyengine/bevy/blob/latest/examples/time/timers.rs)
+#![allow(unused)]
 
 use std::time::Duration;
 
