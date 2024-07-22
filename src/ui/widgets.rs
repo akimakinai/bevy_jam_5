@@ -118,24 +118,32 @@ impl<T: Spawn> Widgets for T {
 pub trait Containers {
     /// Spawns a root node that covers the full screen
     /// and centers its content horizontally and vertically.
-    fn ui_root(&mut self) -> EntityCommands;
+    fn ui_root(&mut self) -> EntityCommands {
+        self.ui_root_with_style(|style| style)
+    }
+
+    /// [`Containers::ui_root`] with a custom style.
+    fn ui_root_with_style(&mut self, style_mod: impl FnOnce(Style) -> Style) -> EntityCommands;
 }
 
 impl Containers for Commands<'_, '_> {
-    fn ui_root(&mut self) -> EntityCommands {
+    fn ui_root_with_style(&mut self, style_mod: impl FnOnce(Style) -> Style) -> EntityCommands {
+        let style = Style {
+            width: Percent(100.0),
+            height: Percent(100.0),
+            justify_content: JustifyContent::Center,
+            align_items: AlignItems::Center,
+            flex_direction: FlexDirection::Column,
+            row_gap: Px(10.0),
+            position_type: PositionType::Absolute,
+            ..default()
+        };
+        let style = style_mod(style);
+
         self.spawn((
             Name::new("UI Root"),
             NodeBundle {
-                style: Style {
-                    width: Percent(100.0),
-                    height: Percent(100.0),
-                    justify_content: JustifyContent::Center,
-                    align_items: AlignItems::Center,
-                    flex_direction: FlexDirection::Column,
-                    row_gap: Px(10.0),
-                    position_type: PositionType::Absolute,
-                    ..default()
-                },
+                style,
                 ..default()
             },
         ))

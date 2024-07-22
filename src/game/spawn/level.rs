@@ -3,7 +3,7 @@
 use bevy::prelude::*;
 use bevy_ecs_ldtk::{LdtkWorldBundle, LevelSelection};
 
-use crate::game::assets::{HandleMap, LdtkKey};
+use crate::{game::assets::{HandleMap, LdtkKey}, screen::Screen};
 
 // use super::player::SpawnPlayer;
 
@@ -27,5 +27,5 @@ fn spawn_level(
     commands.spawn(LdtkWorldBundle {
         ldtk_handle: ldtk_handle[&LdtkKey::Level].clone(),
         ..Default::default()
-    });
+    }).insert(StateScoped(Screen::Playing));
 }
