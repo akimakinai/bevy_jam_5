@@ -2,6 +2,7 @@
 //!
 //! Draggable `Card` entities are placed in slots.
 //! A `Card` is positioned relative if it's in a slot, and absolute if it's being dragged.
+//! Whatever this will look like (like a sequencer for DJ concept? Bot composer.), we can abstract it with cards and slots.
 use crate::screen::Screen;
 use crate::ui::prelude::*;
 use bevy::color::palettes::tailwind::*;
@@ -12,6 +13,9 @@ use sickle_ui_scaffold::drag_interaction::{
 };
 use sickle_ui_scaffold::drop_interaction::{DropInteractionPlugin, DropPhase, DropZone, Droppable};
 use sickle_ui_scaffold::flux_interaction::{FluxInteractionPlugin, TrackedInteraction};
+
+// This module is UI-only, and everything is under the UI root which has `StateScoped`.
+// No other `spawn`s should need it.
 
 pub fn plugin(app: &mut App) {
     app.add_plugins((
@@ -29,6 +33,8 @@ pub fn plugin(app: &mut App) {
             .run_if(in_state(Screen::Playing))
             .after(DraggableUpdate),
     );
+
+    app.observe(handle_reset_position);
 }
 
 #[derive(Component, Debug, Clone, Copy, PartialEq, Eq)]
@@ -39,34 +45,32 @@ enum Card {
     // Attack,
 }
 
-fn spawn_card(children: &mut ChildBuilder) {
-    children
-        .spawn(NodeBundle {
+fn card_bundle(card: Card) -> impl Bundle {
+    (
+        NodeBundle {
             style: Style {
                 width: Px(80.0),
                 height: Px(80.0),
                 ..default()
             },
             background_color: BLUE_300.into(),
+            z_index: ZIndex::Global(999),
             ..default()
-        })
-        .insert((
-            ZIndex::Global(999),
-            Interaction::None,
-            TrackedInteraction::default(),
-            Draggable::default(),
-            Droppable::default(),
-            RelativeCursorPosition::default(),
-        ))
-        .insert(Card::Forward);
+        },
+        card,
+        // Drag-and-drop components:
+        Interaction::None,
+        TrackedInteraction::default(),
+        Draggable::default(),
+        Droppable::default(),
+        RelativeCursorPosition::default(),
+    )
 }
 
-// Use observers for drag-and-drop events to split UI update and game logic.
-
 #[derive(Event)]
-struct DropCancel;
+struct ResetPosition;
 
-fn handle_drop_cancel(trigger: Trigger<DropCancel>, mut styles: Query<&mut Style>) {
+fn handle_reset_position(trigger: Trigger<ResetPosition>, mut styles: Query<&mut Style>) {
     let mut style = styles.get_mut(trigger.entity()).unwrap();
 
     if style.left != Px(0.) {
@@ -77,8 +81,12 @@ fn handle_drop_cancel(trigger: Trigger<DropCancel>, mut styles: Query<&mut Style
     }
 }
 
-fn card_drag(mut cards: Query<(&Draggable, &mut Style), (With<Card>, Changed<Draggable>)>) {
-    for (draggable, mut style) in cards.iter_mut() {
+/// Update the position of the dragged card.
+fn card_drag(
+    mut commands: Commands,
+    mut cards: Query<(Entity, &Draggable, &mut Style), (With<Card>, Changed<Draggable>)>,
+) {
+    for (entity, draggable, mut style) in cards.iter_mut() {
         debug!("{:?}", draggable);
         // FIXME: can't we use absolute positioning for the dragged card?
         match draggable.state {
@@ -93,40 +101,54 @@ fn card_drag(mut cards: Query<(&Draggable, &mut Style), (With<Card>, Changed<Dra
                 // Position will be set by the drop interaction.
             }
             _ => {
-                if style.left != Px(0.) {
-                    style.left = Px(0.);
-                }
-                if style.top != Px(0.) {
-                    style.top = Px(0.);
-                }
+                commands.trigger_targets(ResetPosition, entity);
             }
         }
     }
 }
 
+// #[derive(Event)]
+// struct CardDrop(usize);
+
 fn card_drop(
+    mut commands: Commands,
     slots: Query<(&CardSlot, &DropZone), Changed<DropZone>>,
     cards: Query<&Card>,
     mut inventory: ResMut<Inventory>,
 ) {
-    for (slot, drop_zone) in slots.iter() {
+    for (&CardSlot(slot), drop_zone) in slots.iter() {
         debug!("{:?} {:?}", slot, drop_zone);
-        if drop_zone.drop_phase() == DropPhase::Dropped {
-            if inventory.cards[slot.0].is_some() {
-                // Cancel drop
-                // TODO: trigger cancel drop event
-            }
-
-            let Some(card) = drop_zone.incoming_droppable() else {
-                continue;
-            };
-            let Ok(card) = cards.get(card) else {
-                continue;
-            };
-
-            inventory.cards[slot.0] = Some(*card);
-            // TODO: trigger drop done event
+        if drop_zone.drop_phase() != DropPhase::Dropped {
+            continue;
         }
+        let Some(card_id) = drop_zone.incoming_droppable() else {
+            continue;
+        };
+
+        if inventory.cards[slot].is_some() {
+            commands.trigger_targets(ResetPosition, card_id);
+        }
+
+        let Ok(&card) = cards.get(card_id) else {
+            continue;
+        };
+
+        // Already occupied.
+        if inventory.cards[slot].is_some() {
+            commands.trigger_targets(ResetPosition, card_id);
+            continue;
+        }
+
+        inventory.cards[slot] = Some(card);
+
+        // FIXME: can't we change parent?
+        commands.entity(card_id).despawn_recursive();
+
+        commands
+            .entity(inventory.slots[slot])
+            .with_children(|children| {
+                children.spawn(card_bundle(card));
+            });
     }
 }
 
@@ -171,25 +193,28 @@ fn enter_playing(mut commands: Commands) {
                 .with_children(|children| {
                     for i in 0..SLOTS_NUM {
                         let id = children
-                            .spawn(NodeBundle {
-                                style: Style {
-                                    width: Px(80.0),
-                                    height: Px(80.0),
-                                    margin: UiRect::all(Px(8.0)),
-                                    border: UiRect::all(Px(3.0)),
+                            .spawn((
+                                NodeBundle {
+                                    style: Style {
+                                        width: Px(80.0),
+                                        height: Px(80.0),
+                                        margin: UiRect::all(Px(8.0)),
+                                        border: UiRect::all(Px(3.0)),
+                                        ..default()
+                                    },
+                                    border_color: ORANGE_600.into(),
                                     ..default()
                                 },
-                                border_color: ORANGE_600.into(),
-                                ..default()
-                            })
-                            .insert(CardSlot(i))
-                            .insert(DropZone::default())
-                            .insert(Interaction::None)
-                            .insert(palette_empty())
+                                CardSlot(i),
+                                Interaction::None,
+                                palette_empty(),
+                                DropZone::default(),
+                                RelativeCursorPosition::default(),
+                            ))
                             .with_children(|children| {
                                 // test
                                 if i == 0 {
-                                    spawn_card(children);
+                                    children.spawn(card_bundle(Card::Forward));
                                 }
                             })
                             .id();
