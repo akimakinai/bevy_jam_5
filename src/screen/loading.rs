@@ -59,5 +59,9 @@ fn all_assets_loaded(
 }
 
 fn continue_to_title(mut next_screen: ResMut<NextState<Screen>>) {
+    // Skip title screen in dev mode.
+    #[cfg(feature = "dev")]
+    next_screen.set(Screen::Playing);
+    #[cfg(not(feature = "dev"))]
     next_screen.set(Screen::Title);
 }
