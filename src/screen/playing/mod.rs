@@ -5,11 +5,9 @@ use bevy::{input::common_conditions::input_just_pressed, prelude::*};
 use super::Screen;
 use crate::game::spawn::level::SpawnLevel;
 
-// mod slots;
 mod sequencer;
 
 pub(super) fn plugin(app: &mut App) {
-    // app.add_plugins(slots::plugin);
     app.add_plugins(sequencer::plugin);
 
     app.add_systems(OnEnter(Screen::Playing), enter_playing);
