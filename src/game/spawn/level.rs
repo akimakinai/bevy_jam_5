@@ -3,7 +3,10 @@
 use bevy::prelude::*;
 use bevy_ecs_ldtk::{LdtkWorldBundle, LevelSelection};
 
-use crate::{game::assets::{HandleMap, LdtkKey}, screen::Screen};
+use crate::{
+    game::assets::{HandleMap, LdtkKey},
+    screen::Screen,
+};
 
 // use super::player::SpawnPlayer;
 
@@ -24,8 +27,10 @@ fn spawn_level(
     // // The only thing we have in our level is a player,
     // // but add things like walls etc. here.
     // commands.trigger(SpawnPlayer);
-    commands.spawn(LdtkWorldBundle {
-        ldtk_handle: ldtk_handle[&LdtkKey::Level].clone(),
-        ..Default::default()
-    }).insert(StateScoped(Screen::Playing));
+    commands
+        .spawn(LdtkWorldBundle {
+            ldtk_handle: ldtk_handle[&LdtkKey::Level].clone(),
+            ..Default::default()
+        })
+        .insert(StateScoped(Screen::Playing));
 }

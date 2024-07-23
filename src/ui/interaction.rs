@@ -1,10 +1,20 @@
 use bevy::prelude::*;
 
-use crate::game::{assets::SfxKey, audio::sfx::PlaySfx};
+use crate::{
+    game::{assets::SfxKey, audio::sfx::PlaySfx},
+    screen::Screen,
+};
 
 pub(super) fn plugin(app: &mut App) {
     app.register_type::<InteractionPalette>();
-    app.add_systems(Update, (apply_interaction_palette, trigger_interaction_sfx));
+    app.add_systems(
+        Update,
+        (
+            apply_interaction_palette,
+            trigger_interaction_sfx
+                .run_if(in_state(Screen::Title).or_else(in_state(Screen::Credits))),
+        ),
+    );
 }
 
 pub type InteractionQuery<'w, 's, T> =

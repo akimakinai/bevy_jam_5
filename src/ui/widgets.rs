@@ -140,13 +140,7 @@ impl Containers for Commands<'_, '_> {
         };
         let style = style_mod(style);
 
-        self.spawn((
-            Name::new("UI Root"),
-            NodeBundle {
-                style,
-                ..default()
-            },
-        ))
+        self.spawn((Name::new("UI Root"), NodeBundle { style, ..default() }))
     }
 }
 
