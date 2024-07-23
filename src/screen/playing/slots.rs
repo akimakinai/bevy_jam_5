@@ -112,16 +112,24 @@ fn card_drag(
 
 fn card_drop(
     mut commands: Commands,
-    slots: Query<(&CardSlot, &DropZone), Changed<DropZone>>,
-    cards: Query<&Card>,
+    drop_zones: Query<(Entity, &DropZone), (Changed<DropZone>, With<CardSlot>)>,
+    slots: Query<&CardSlot>,
+    cards: Query<(&Card, &Parent)>,
     mut inventory: ResMut<Inventory>,
 ) {
-    for (&CardSlot(slot), drop_zone) in slots.iter() {
-        debug!("{:?} {:?}", slot, drop_zone);
+    for (entity, drop_zone) in drop_zones.iter() {
         if drop_zone.drop_phase() != DropPhase::Dropped {
             continue;
         }
+
         let Some(card_id) = drop_zone.incoming_droppable() else {
+            continue;
+        };
+        if !cards.contains(card_id) {
+            continue;
+        }
+
+        let Ok(&CardSlot(slot)) = slots.get(entity) else {
             continue;
         };
 
@@ -129,7 +137,7 @@ fn card_drop(
             commands.trigger_targets(ResetPosition, card_id);
         }
 
-        let Ok(&card) = cards.get(card_id) else {
+        let Ok((&card, parent)) = cards.get(card_id) else {
             continue;
         };
 
@@ -139,6 +147,9 @@ fn card_drop(
             continue;
         }
 
+        let &CardSlot(old_slot) = slots.get(parent.get()).unwrap();
+
+        inventory.cards[old_slot] = None;
         inventory.cards[slot] = Some(card);
 
         // FIXME: can't we change parent?
