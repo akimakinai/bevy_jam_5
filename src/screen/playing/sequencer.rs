@@ -10,6 +10,8 @@
 // Btw, events and observers shares the same `Event` trait is communication hazard!
 // "Send a Event" might mean "Send a Event to the Event system" or "Send a Event to the Observer".
 
+use std::ops::Deref;
+
 use bevy::color::palettes::css::{BLACK, WHITE};
 use bevy::color::palettes::tailwind::*;
 use bevy::prelude::*;
@@ -114,6 +116,7 @@ fn enter_playing(mut commands: Commands) {
                                         )
                                         .with_style(
                                             Style {
+                                                left: Px(0.0),
                                                 width: Px(100.0),
                                                 height: Percent(100.0),
                                                 position_type: PositionType::Absolute,
@@ -140,24 +143,60 @@ fn enter_playing(mut commands: Commands) {
 #[derive(Component)]
 struct Note;
 
-#[derive(Component)]
-struct OriginalTrack(Entity);
+#[derive(Resource, Clone, Debug)]
+struct NoteDragged {
+    note: Entity,
+    orig_track: Entity,
+    orig_left: f32,
+}
 
 /// Update the position of a dragged note.
 fn note_drag(
     mut commands: Commands,
     mut cards: Query<(Entity, &Draggable, &Parent, &mut Style), (With<Note>, Changed<Draggable>)>,
+    mut note_drag: Option<ResMut<NoteDragged>>,
 ) {
     for (entity, draggable, parent, mut style) in cards.iter_mut() {
-        if draggable.state == DragState::DragStart {
-            commands.entity(entity).insert(OriginalTrack(parent.get()));
+        if matches!(
+            draggable.state,
+            DragState::DragEnd | DragState::DragCanceled
+        ) {
+            if let Some(note_drag) = &note_drag {
+                if note_drag.note == entity {
+                    commands.remove_resource::<NoteDragged>();
+                }
+            }
+            continue;
         }
 
         if matches!(draggable.state, DragState::DragStart | DragState::Dragging) {
+            let note_drag = if let Some(note_drag) = &note_drag {
+                if note_drag.note != entity {
+                    None
+                } else {
+                    Some(note_drag.deref().clone())
+                }
+            } else {
+                None
+            };
+
+            let note_drag = note_drag.unwrap_or_else(|| {
+                let px = if let Px(px) = style.left { px } else { 0.0 };
+                let nd = NoteDragged {
+                    note: entity,
+                    orig_track: parent.get(),
+                    orig_left: px,
+                };
+                commands.insert_resource(nd.clone());
+                nd
+            });
+
             if let (Some(origin), Some(position)) = (draggable.origin, draggable.position) {
-                let diff = position - origin;
+                let diff = position - origin + note_drag.orig_left;
                 style.left = Px(diff.x);
             }
+
+            break;
         }
     }
 }
@@ -168,7 +207,12 @@ fn note_move_between_tracks(
     drop_zones: Query<(Entity, &DropZone), (Changed<DropZone>, With<Track>)>,
     notes: Query<(&Note, &Parent)>,
     name: Query<&Name>,
+    note_drag: Option<Res<NoteDragged>>,
 ) {
+    let Some(note_drag) = note_drag else {
+        return;
+    };
+
     let mut track_infos = String::new();
     for (track_id, drop_zone) in drop_zones.iter() {
         if matches!(
@@ -178,6 +222,10 @@ fn note_move_between_tracks(
             let Some(incoming) = drop_zone.incoming_droppable() else {
                 continue;
             };
+            if incoming != note_drag.note {
+                continue;
+            }
+
             let Ok((note, old_track)) = notes.get(incoming) else {
                 continue;
             };
@@ -194,6 +242,8 @@ fn note_move_between_tracks(
                 // TODO: play sfx when note moved between tracks
                 // TODO: change overlapped note's length?
             }
+
+            break;
         }
     }
 }
@@ -202,19 +252,28 @@ fn note_move_between_tracks(
 // (`DropZone` of the original track is not activated by dragging `Draggable` from the same track)
 fn note_move_inactive(
     mut commands: Commands,
-    notes: Query<(Entity, &Draggable, &Parent, &OriginalTrack), With<Note>>,
+    notes: Query<(Entity, &Draggable, &Parent), With<Note>>,
     drop_zones: Query<&DropZone, With<Track>>,
+    note_drag: Option<Res<NoteDragged>>,
 ) {
+    let Some(note_drag) = note_drag else {
+        return;
+    };
+
     let all_inactive = drop_zones
         .iter()
         .all(|drop_zone| drop_zone.drop_phase() == DropPhase::Inactive);
     if all_inactive {
-        for (note_id, draggable, parent, orig_track) in notes.iter() {
+        for (note_id, draggable, parent) in notes.iter() {
+            if note_id != note_drag.note {
+                continue;
+            }
             if matches!(draggable.state, DragState::DragStart | DragState::Dragging) {
-                if parent.get() != orig_track.0 {
-                    commands.entity(note_id).set_parent(orig_track.0);
+                if parent.get() != note_drag.orig_track {
+                    commands.entity(note_id).set_parent(note_drag.orig_track);
                 }
             }
+            break;
         }
     }
 }
