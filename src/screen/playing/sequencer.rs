@@ -1,6 +1,15 @@
 #![allow(unused)]
 #![warn(unused_imports, dead_code)]
 
+// This module is responsible for the sequencer UI.
+
+// The sequencer UI has the seek bar. Receives play time via Resource?
+// When the seek bar is dragged, emits rollback/rollforward event.
+// Supplies what not is being played via Resource? Event (to be observed)?
+
+// Btw, events and observers shares the same `Event` trait is communication hazard!
+// "Send a Event" might mean "Send a Event to the Event system" or "Send a Event to the Observer".
+
 use bevy::color::palettes::css::{BLACK, WHITE};
 use bevy::color::palettes::tailwind::*;
 use bevy::prelude::*;
@@ -30,7 +39,8 @@ pub(super) fn plugin(app: &mut App) {
 
     app.add_systems(
         Update,
-        (note_drag, note_move_between_tracks)
+        (note_drag, note_move_between_tracks, note_move_inactive)
+            .chain()
             .run_if(in_state(Screen::Playing))
             .after(DraggableUpdate),
     );
@@ -130,20 +140,24 @@ fn enter_playing(mut commands: Commands) {
 #[derive(Component)]
 struct Note;
 
+#[derive(Component)]
+struct OriginalTrack(Entity);
+
 /// Update the position of a dragged note.
 fn note_drag(
     mut commands: Commands,
-    mut cards: Query<(Entity, &Draggable, &mut Style), (With<Note>, Changed<Draggable>)>,
+    mut cards: Query<(Entity, &Draggable, &Parent, &mut Style), (With<Note>, Changed<Draggable>)>,
 ) {
-    for (entity, draggable, mut style) in cards.iter_mut() {
-        match draggable.state {
-            DragState::DragStart | DragState::Dragging => {
-                if let (Some(origin), Some(position)) = (draggable.origin, draggable.position) {
-                    let diff = position - origin;
-                    style.left = Px(diff.x);
-                }
+    for (entity, draggable, parent, mut style) in cards.iter_mut() {
+        if draggable.state == DragState::DragStart {
+            commands.entity(entity).insert(OriginalTrack(parent.get()));
+        }
+
+        if matches!(draggable.state, DragState::DragStart | DragState::Dragging) {
+            if let (Some(origin), Some(position)) = (draggable.origin, draggable.position) {
+                let diff = position - origin;
+                style.left = Px(diff.x);
             }
-            _ => {}
         }
     }
 }
@@ -157,11 +171,10 @@ fn note_move_between_tracks(
 ) {
     let mut track_infos = String::new();
     for (track_id, drop_zone) in drop_zones.iter() {
-        track_infos.push_str(&format!("track = {}, drop_phase = {:?}\n", name.get(track_id).unwrap(), drop_zone.drop_phase()));
-
-        if drop_zone.drop_phase() == DropPhase::DroppableEntered
-            || drop_zone.drop_phase() == DropPhase::DroppableHover
-        {
+        if matches!(
+            drop_zone.drop_phase(),
+            DropPhase::DroppableEntered | DropPhase::DroppableHover
+        ) {
             let Some(incoming) = drop_zone.incoming_droppable() else {
                 continue;
             };
@@ -171,10 +184,7 @@ fn note_move_between_tracks(
 
             // Move the note to the new track
             if old_track.get() != track_id {
-                commands
-                    .entity(old_track.get())
-                    .remove_children(&[incoming]);
-                commands.entity(track_id).add_child(incoming);
+                commands.entity(incoming).set_parent(track_id);
                 screen_print!(
                     "Moved note {incoming:?} from track {:?} to {:?}",
                     name.get(old_track.get()).unwrap(),
@@ -186,9 +196,25 @@ fn note_move_between_tracks(
             }
         }
     }
-    if !track_infos.is_empty() {
-        screen_print!("{}", track_infos);
-    }
+}
 
-    // Huh, it looks like if no DropZone is active while a note is dragged, we need to move it to the original track
+// If no `DropZone` is active while a note is being dragged, move it back to its original track.
+// (`DropZone` of the original track is not activated by dragging `Draggable` from the same track)
+fn note_move_inactive(
+    mut commands: Commands,
+    notes: Query<(Entity, &Draggable, &Parent, &OriginalTrack), With<Note>>,
+    drop_zones: Query<&DropZone, With<Track>>,
+) {
+    let all_inactive = drop_zones
+        .iter()
+        .all(|drop_zone| drop_zone.drop_phase() == DropPhase::Inactive);
+    if all_inactive {
+        for (note_id, draggable, parent, orig_track) in notes.iter() {
+            if matches!(draggable.state, DragState::DragStart | DragState::Dragging) {
+                if parent.get() != orig_track.0 {
+                    commands.entity(note_id).set_parent(orig_track.0);
+                }
+            }
+        }
+    }
 }
