@@ -47,7 +47,10 @@ pub(super) fn plugin(app: &mut App) {
     // app.add_plugins(ResourceInspectorPlugin::<NoteDragged>::default());
     app.add_systems(
         Update,
-        (note_drag, note_move_between_tracks, note_move_inactive)
+        (
+            note_drag,
+            (note_move_between_tracks, note_move_inactive).run_if(resource_exists::<NoteDragged>),
+        )
             .chain()
             .run_if(in_state(Screen::Playing))
             .after(DraggableUpdate),
@@ -266,12 +269,8 @@ fn note_move_between_tracks(
     drop_zones: Query<(Entity, &DropZone), (Changed<DropZone>, With<Track>)>,
     notes: Query<(&Note, &Parent)>,
     name: Query<&Name>,
-    note_drag: Option<Res<NoteDragged>>,
+    note_drag: Res<NoteDragged>,
 ) {
-    let Some(note_drag) = note_drag else {
-        return;
-    };
-
     for (track_id, drop_zone) in drop_zones.iter() {
         if matches!(
             drop_zone.drop_phase(),
@@ -312,12 +311,8 @@ fn note_move_inactive(
     mut commands: Commands,
     notes: Query<(Entity, &Draggable, &Parent), With<Note>>,
     drop_zones: Query<&DropZone, With<Track>>,
-    note_drag: Option<Res<NoteDragged>>,
+    note_drag: Res<NoteDragged>,
 ) {
-    let Some(note_drag) = note_drag else {
-        return;
-    };
-
     let all_inactive = drop_zones
         .iter()
         .all(|drop_zone| drop_zone.drop_phase() == DropPhase::Inactive);
