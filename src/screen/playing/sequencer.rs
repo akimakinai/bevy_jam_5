@@ -322,16 +322,18 @@ fn note_move_inactive(
         .iter()
         .all(|drop_zone| drop_zone.drop_phase() == DropPhase::Inactive);
     if all_inactive {
-        for (note_id, draggable, parent) in notes.iter() {
-            if note_id != note_drag.note {
-                continue;
+        let Ok((note_id, draggable, parent)) = notes.get(note_drag.note) else {
+            error!(
+                "NoteDragged points to a non-existent entity {:?}",
+                note_drag.note
+            );
+            return;
+        };
+
+        if matches!(draggable.state, DragState::DragStart | DragState::Dragging) {
+            if parent.get() != note_drag.orig_track {
+                commands.entity(note_id).set_parent(note_drag.orig_track);
             }
-            if matches!(draggable.state, DragState::DragStart | DragState::Dragging) {
-                if parent.get() != note_drag.orig_track {
-                    commands.entity(note_id).set_parent(note_drag.orig_track);
-                }
-            }
-            break;
         }
     }
 }
