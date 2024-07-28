@@ -5,9 +5,11 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+avian2d = "0.1.1"
 bevy = { version = "0.14", features = ["wayland"] }
 bevy-debug-text-overlay = { git = "https://github.com/JordanLloydHall/bevy-debug-text-overlay", branch = "upgrade_to_bevy_0_14", version = "14.0.0", optional = true }
 bevy-inspector-egui = { version = "0.25.1", optional = true }
+bevy-tnua-avian2d = "0.1.0"
 bevy_ecs_ldtk = "0.10.0"
 # Disable low-severity logs at compile time for performance.
 log = { version = "0.4", features = [
