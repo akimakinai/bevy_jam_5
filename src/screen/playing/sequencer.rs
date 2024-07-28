@@ -1,5 +1,5 @@
-#![allow(unused)]
-#![warn(unused_imports, dead_code)]
+// #![allow(unused)]
+// #![warn(unused_imports, dead_code)]
 
 // This module is responsible for the sequencer UI.
 
@@ -23,6 +23,7 @@ use sickle_ui_scaffold::drag_interaction::{
 };
 use sickle_ui_scaffold::drop_interaction::{DropInteractionPlugin, DropPhase, DropZone, Droppable};
 use sickle_ui_scaffold::flux_interaction::{FluxInteractionPlugin, TrackedInteraction};
+use sickle_ui_scaffold::prelude::{FluxInteraction, FluxInteractionUpdate};
 
 use crate::screen::Screen;
 use crate::ui::prelude::*;
@@ -35,16 +36,28 @@ pub(super) fn plugin(app: &mut App) {
     ));
 
     #[cfg(feature = "dev")]
-    app.add_plugins(OverlayPlugin::default());
+    if !app.is_plugin_added::<OverlayPlugin>() {
+        app.add_plugins(OverlayPlugin::default());
+    }
 
     app.add_systems(OnEnter(Screen::Playing), enter_playing);
 
+    app.register_type::<NoteDragged>();
+    // #[cfg(feature = "dev")]
+    // app.add_plugins(ResourceInspectorPlugin::<NoteDragged>::default());
     app.add_systems(
         Update,
         (note_drag, note_move_between_tracks, note_move_inactive)
             .chain()
             .run_if(in_state(Screen::Playing))
             .after(DraggableUpdate),
+    );
+
+    app.add_systems(
+        Update,
+        track_interaction
+            .after(FluxInteractionUpdate)
+            .run_if(in_state(Screen::Playing)),
     );
 }
 
@@ -100,40 +113,12 @@ fn enter_playing(mut commands: Commands) {
                                     ..default()
                                 },
                                 Interaction::None,
+                                TrackedInteraction::default(),
                                 DropZone::default(),
                                 RelativeCursorPosition::default(),
                             ))
                             .with_children(|children| {
-                                children
-                                    .spawn(
-                                        TextBundle::from_section(
-                                            "Drag me",
-                                            TextStyle {
-                                                font_size: 24.0,
-                                                color: BLACK.into(),
-                                                ..default()
-                                            },
-                                        )
-                                        .with_style(
-                                            Style {
-                                                left: Px(0.0),
-                                                width: Px(100.0),
-                                                height: Percent(100.0),
-                                                position_type: PositionType::Absolute,
-                                                align_content: AlignContent::Center,
-                                                ..default()
-                                            },
-                                        ),
-                                    )
-                                    .insert((
-                                        BackgroundColor(WHITE.into()),
-                                        Interaction::None,
-                                        TrackedInteraction::default(),
-                                        Draggable::default(),
-                                        Droppable::default(),
-                                        RelativeCursorPosition::default(),
-                                        Note,
-                                    ));
+                                children.spawn(Note::bundle(0.0));
                             });
                     }
                 });
@@ -143,7 +128,81 @@ fn enter_playing(mut commands: Commands) {
 #[derive(Component)]
 struct Note;
 
-#[derive(Resource, Clone, Debug)]
+const NOTE_DEFAULT_WIDTH: f32 = 100.0;
+
+impl Note {
+    fn bundle(left_px: f32) -> impl Bundle {
+        (
+            TextBundle::from_section(
+                "Drag me",
+                TextStyle {
+                    font_size: 24.0,
+                    color: BLACK.into(),
+                    ..default()
+                },
+            )
+            .with_style(Style {
+                left: Px(left_px),
+                width: Px(NOTE_DEFAULT_WIDTH),
+                height: Percent(100.0),
+                position_type: PositionType::Absolute,
+                align_content: AlignContent::Center,
+                ..default()
+            })
+            .with_background_color(WHITE.into()),
+            Interaction::None,
+            TrackedInteraction::default(),
+            Draggable::default(),
+            Droppable::default(),
+            RelativeCursorPosition::default(),
+            Note,
+        )
+    }
+}
+
+// If a track is pressed and no notes are hovered, spawn a note at the cursor position.
+fn track_interaction(
+    mut commands: Commands,
+    notes: Query<&Interaction, With<Note>>,
+    tracks: Query<
+        (
+            Entity,
+            &Name,
+            &Node,
+            &GlobalTransform,
+            &FluxInteraction,
+            &RelativeCursorPosition,
+        ),
+        (With<Track>, Changed<FluxInteraction>),
+    >,
+) {
+    let any_notes_interacted = notes
+        .iter()
+        .any(|&interaction| interaction != Interaction::None);
+    if any_notes_interacted {
+        return;
+    }
+
+    for (track_id, name, node, gtr, interaction, rel_cur_pos) in tracks.iter() {
+        if interaction.is_pressed() {
+            screen_print!("Track {:?} pressed", name);
+
+            let cur_x = if let Some(touch_pos) = rel_cur_pos.normalized {
+                touch_pos.x
+            } else {
+                // this could be unreachable!(), but let's be safe
+                return;
+            };
+
+            commands.entity(track_id).with_children(|child| {
+                let track_width = node.logical_rect(gtr).width();
+                child.spawn(Note::bundle(track_width * cur_x - NOTE_DEFAULT_WIDTH / 2.0));
+            });
+        }
+    }
+}
+
+#[derive(Resource, Clone, Debug, Reflect)]
 struct NoteDragged {
     note: Entity,
     orig_track: Entity,
@@ -154,12 +213,12 @@ struct NoteDragged {
 fn note_drag(
     mut commands: Commands,
     mut cards: Query<(Entity, &Draggable, &Parent, &mut Style), (With<Note>, Changed<Draggable>)>,
-    mut note_drag: Option<ResMut<NoteDragged>>,
+    note_drag: Option<ResMut<NoteDragged>>,
 ) {
     for (entity, draggable, parent, mut style) in cards.iter_mut() {
         if matches!(
             draggable.state,
-            DragState::DragEnd | DragState::DragCanceled
+            DragState::DragEnd | DragState::DragCanceled | DragState::Inactive
         ) {
             if let Some(note_drag) = &note_drag {
                 if note_drag.note == entity {
@@ -213,7 +272,6 @@ fn note_move_between_tracks(
         return;
     };
 
-    let mut track_infos = String::new();
     for (track_id, drop_zone) in drop_zones.iter() {
         if matches!(
             drop_zone.drop_phase(),
@@ -226,7 +284,7 @@ fn note_move_between_tracks(
                 continue;
             }
 
-            let Ok((note, old_track)) = notes.get(incoming) else {
+            let Ok((_note, old_track)) = notes.get(incoming) else {
                 continue;
             };
 
