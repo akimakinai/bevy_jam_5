@@ -148,7 +148,7 @@ impl Containers for Commands<'_, '_> {
 /// This is here so that [`Widgets`] can be implemented on all types that
 /// are able to spawn entities.
 /// Ideally, this trait should be [part of Bevy itself](https://github.com/bevyengine/bevy/issues/14231).
-trait Spawn {
+pub trait Spawn {
     fn spawn<B: Bundle>(&mut self, bundle: B) -> EntityCommands;
 }
 
