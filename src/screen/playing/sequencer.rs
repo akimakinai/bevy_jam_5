@@ -39,7 +39,7 @@ pub(super) fn plugin(app: &mut App) {
     app.add_systems(OnEnter(Screen::Playing), enter_playing);
     app.add_systems(OnExit(Screen::Playing), exit_playing);
 
-    app.add_systems(Update, update_seek_bar);
+    app.add_systems(Update, update_seek_bar.run_if(in_state(Screen::Playing)));
 
     app.add_plugins(interaction::plugin);
 }
@@ -70,22 +70,6 @@ fn enter_playing(mut commands: Commands) {
         .with_children(|children| {
             children.label("Sequencer");
 
-            children.spawn((
-                Name::new("Seek Bar"),
-                NodeBundle {
-                    style: Style {
-                        position_type: PositionType::Absolute,
-                        width: Px(5.0),
-                        height: Percent(100.0),
-                        ..default()
-                    },
-                    z_index: ZIndex::Local(999),
-                    ..default()
-                },
-                BackgroundColor(BLUE_50.into()),
-            ));
-            // TODO: add seek bar handle
-
             children
                 .spawn(NodeBundle {
                     style: Style {
@@ -99,6 +83,23 @@ fn enter_playing(mut commands: Commands) {
                     ..default()
                 })
                 .with_children(|children| {
+                    children.spawn((
+                        Name::new("Seek Bar"),
+                        NodeBundle {
+                            style: Style {
+                                position_type: PositionType::Absolute,
+                                // we need to get local rect of tracks
+                                width: Px(5.0),
+                                height: Percent(100.0),
+                                ..default()
+                            },
+                            z_index: ZIndex::Local(999),
+                            background_color: BackgroundColor(BLUE_50.into()),
+                            ..default()
+                        },
+                    ));
+                    // TODO: add seek bar handle
+
                     for s in ["Jump", "Attack", "Wait", "Backward"] {
                         children.spawn(TextBundle::from_section(
                             s,
