@@ -6,9 +6,12 @@ use super::Screen;
 use crate::game::spawn::level::SpawnLevel;
 
 mod sequencer;
+mod player;
 
 pub(super) fn plugin(app: &mut App) {
-    app.add_plugins(sequencer::plugin);
+    app.init_state::<SequencerPlaying>();
+
+    app.add_plugins((sequencer::plugin, player::plugin));
 
     app.add_systems(OnEnter(Screen::Playing), enter_playing);
     app.add_systems(OnExit(Screen::Playing), exit_playing);
@@ -20,11 +23,17 @@ pub(super) fn plugin(app: &mut App) {
     );
 }
 
-fn enter_playing(mut commands: Commands, mut proj: Query<&mut OrthographicProjection>) {
+// defined here because it's used by both the sequencer and player systems
+#[derive(States, Debug, Hash, PartialEq, Eq, Clone, Default)]
+struct SequencerPlaying(bool);
+
+fn enter_playing(mut commands: Commands, mut proj: Query<&mut OrthographicProjection>, mut seq_state: ResMut<NextState<SequencerPlaying>>) {
     commands.trigger(SpawnLevel);
 
     let mut proj = proj.single_mut();
     proj.scale = 0.5;
+
+    seq_state.set(SequencerPlaying(false));
 }
 
 fn exit_playing(mut proj: Query<&mut OrthographicProjection>) {
