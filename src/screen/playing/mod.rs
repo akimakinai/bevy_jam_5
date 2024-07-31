@@ -33,7 +33,7 @@ fn enter_playing(mut commands: Commands, mut proj: Query<&mut OrthographicProjec
     let mut proj = proj.single_mut();
     proj.scale = 0.5;
 
-    seq_state.set(SequencerPlaying(false));
+    seq_state.set(SequencerPlaying(true));
 }
 
 fn exit_playing(mut proj: Query<&mut OrthographicProjection>) {
