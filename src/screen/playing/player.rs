@@ -48,7 +48,7 @@ fn spawn_player(trigger: Trigger<OnAdd, Player>, mut commands: Commands) {
         .entity(entity)
         .insert((
             RigidBody::Dynamic,
-            Collider::capsule(8.0, 8.0),
+            Collider::round_rectangle(14.0, 14.0, 1.0),
             TnuaControllerBundle::default(),
         ))
         .with_children(|children| {

@@ -6,7 +6,7 @@ use sickle_ui_scaffold::prelude::{Draggable, Droppable, TrackedInteraction};
 
 use crate::ui::prelude::*;
 
-#[derive(Component)]
+#[derive(Component, Clone, Copy, Debug)]
 pub struct Note;
 
 impl Note {

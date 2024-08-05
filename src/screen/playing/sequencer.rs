@@ -44,8 +44,9 @@ pub(super) fn plugin(app: &mut App) {
     app.add_plugins(interaction::plugin);
 }
 
-#[derive(Resource, Default)]
+#[derive(Resource)]
 struct Sequencer {
+    id: Entity,
     notes: Vec<Entity>,
     /// Play position in seconds.
     play_pos: f32,
@@ -60,7 +61,7 @@ const TRACK_WIDTH: f32 = 500.0;
 struct SeekBar;
 
 fn enter_playing(mut commands: Commands) {
-    commands.init_resource::<Sequencer>();
+    let mut seq_id = None;
     commands
         .ui_root_with_style(|style| Style {
             justify_content: JustifyContent::End,
@@ -70,18 +71,21 @@ fn enter_playing(mut commands: Commands) {
         .with_children(|children| {
             children.label("Sequencer");
 
-            children
-                .spawn(NodeBundle {
-                    style: Style {
-                        display: Display::Grid,
-                        grid_template_columns: RepeatedGridTrack::auto(2),
-                        row_gap: Val::Px(0.0),
-                        column_gap: Val::Px(12.0),
-                        align_content: AlignContent::Center,
-                        ..Default::default()
+            seq_id = children
+                .spawn((
+                    Name::new("Sequencer"),
+                    NodeBundle {
+                        style: Style {
+                            display: Display::Grid,
+                            grid_template_columns: RepeatedGridTrack::auto(2),
+                            row_gap: Val::Px(0.0),
+                            column_gap: Val::Px(12.0),
+                            align_content: AlignContent::Center,
+                            ..Default::default()
+                        },
+                        ..default()
                     },
-                    ..default()
-                })
+                ))
                 .with_children(|children| {
                     children.spawn((
                         Name::new("Seek Bar"),
@@ -89,7 +93,6 @@ fn enter_playing(mut commands: Commands) {
                             style: Style {
                                 position_type: PositionType::Absolute,
                                 // we need to get local rect of tracks
-                                width: Px(5.0),
                                 height: Percent(100.0),
                                 ..default()
                             },
@@ -97,6 +100,7 @@ fn enter_playing(mut commands: Commands) {
                             background_color: BackgroundColor(BLUE_50.into()),
                             ..default()
                         },
+                        SeekBar,
                     ));
                     // TODO: add seek bar handle
 
@@ -130,8 +134,16 @@ fn enter_playing(mut commands: Commands) {
                             RelativeCursorPosition::default(),
                         ));
                     }
-                });
+                })
+                .id()
+                .into();
         });
+
+    commands.insert_resource(Sequencer {
+        id: seq_id.unwrap(),
+        notes: vec![],
+        play_pos: 0.0,
+    });
 }
 
 fn exit_playing(mut commands: Commands) {
@@ -141,13 +153,81 @@ fn exit_playing(mut commands: Commands) {
 // What the play position, in seconds, will be if we seek fully from the left to the right.
 const SEQUENCER_WIDTH_TIME: f32 = 8.0;
 
+fn get_clipped_rect(node: &Node, gt: &GlobalTransform, clip: Option<&CalculatedClip>) -> Rect {
+    let rect = node.logical_rect(gt);
+    clip.map(|clip| rect.intersect(clip.clip)).unwrap_or(rect)
+}
+
 // Reflects the current play position on the seek bar.
-fn update_seek_bar(mut seek_bar: Query<&mut Style, With<SeekBar>>, sequencer: Res<Sequencer>) {
-    if !sequencer.is_changed() {
-        return;
-    }
+fn update_seek_bar(
+    nodes: Query<(&Node, Option<&CalculatedClip>, &GlobalTransform)>,
+    tracks: Query<Entity, With<Track>>,
+    mut seek_bar: Query<&mut Style, With<SeekBar>>,
+    sequencer: Res<Sequencer>,
+) {
+    // UI rect is not updated in first update, so we run this every frame
+    // technically we can save rects first and only update when sequencer is changed
+    // if !sequencer.is_changed() {
+    //     return;
+    // }
+
+    // subtract rect of sequencer from rect of track
+
+    let sequencer_rect = {
+        let Ok((seq, seq_clip, seq_gt)) = nodes.get(sequencer.id) else {
+            debug!("Sequencer node not found");
+            return;
+        };
+        get_clipped_rect(seq, seq_gt, seq_clip)
+    };
+
+    let track_rect = {
+        // a random track node to get the rect
+        let Some(track_id) = tracks.iter().next() else {
+            debug!("No tracks found");
+            return;
+        };
+        let Ok((track, track_clip, track_gt)) = nodes.get(track_id) else {
+            debug!("Track node not found");
+            return;
+        };
+        get_clipped_rect(track, track_gt, track_clip)
+    };
+
+    let rel_track_x_min = (dbg!(track_rect.min) - dbg!(sequencer_rect.min)).x;
 
     for mut style in seek_bar.iter_mut() {
-        style.width = Percent(sequencer.play_pos / SEQUENCER_WIDTH_TIME * 100.0);
+        style.left = Px(sequencer.play_pos / SEQUENCER_WIDTH_TIME * TRACK_WIDTH + dbg!(rel_track_x_min));
+    }
+}
+
+#[derive(Event)]
+pub struct PlayEvent(pub Note);
+
+fn play_note(
+    sequencer: Res<Sequencer>,
+    mut events: EventWriter<PlayEvent>,
+    notes: Query<(&Note, &Style)>,
+) {
+    for &id in &sequencer.notes {
+        if let Ok((note, style)) = notes.get(id) {
+            // hittest
+            let Val::Px(left) = style.left else {
+                debug!("Note {id:?} does not have `Style::left` in pixels");
+                continue;
+            };
+            let Val::Px(width) = style.width else {
+                debug!("Note {id:?} does not have `Style::width` in pixels");
+                continue;
+            };
+
+            let play_pos = sequencer.play_pos;
+
+            // ouch, are we going to hittest based on UI coordinates??
+            // terrible idea, but let's do it for now
+            // we should have a separate system that do logical rect calculation
+
+            events.send(PlayEvent(*note));
+        }
     }
 }
