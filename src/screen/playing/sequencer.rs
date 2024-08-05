@@ -215,7 +215,7 @@ fn update_seek_bar(
 fn advance_play_pos(
     time: Res<Time>,
     mut sequencer: ResMut<Sequencer>,
-    mut playing_state: NextState<SequencerPlaying>,
+    mut playing_state: ResMut<NextState<SequencerPlaying>>,
 ) {
     let delta = time.delta_seconds();
     sequencer.play_pos += delta;
