@@ -11,7 +11,7 @@ pub mod prelude {
     pub use super::{
         interaction::{InteractionPalette, InteractionQuery},
         palette as ui_palette,
-        widgets::{Containers as _, Widgets as _, Spawn},
+        widgets::{Containers as _, Spawn, Widgets as _},
     };
 }
 

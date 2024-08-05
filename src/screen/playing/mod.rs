@@ -5,8 +5,8 @@ use bevy::{input::common_conditions::input_just_pressed, prelude::*};
 use super::Screen;
 use crate::game::spawn::level::SpawnLevel;
 
-mod sequencer;
 mod player;
+mod sequencer;
 
 pub(super) fn plugin(app: &mut App) {
     app.init_state::<SequencerPlaying>();
@@ -27,7 +27,11 @@ pub(super) fn plugin(app: &mut App) {
 #[derive(States, Debug, Hash, PartialEq, Eq, Clone, Default)]
 struct SequencerPlaying(bool);
 
-fn enter_playing(mut commands: Commands, mut proj: Query<&mut OrthographicProjection>, mut seq_state: ResMut<NextState<SequencerPlaying>>) {
+fn enter_playing(
+    mut commands: Commands,
+    mut proj: Query<&mut OrthographicProjection>,
+    mut seq_state: ResMut<NextState<SequencerPlaying>>,
+) {
     commands.trigger(SpawnLevel);
 
     let mut proj = proj.single_mut();

@@ -7,11 +7,14 @@
 // When the seek bar is dragged, emits rollback/rollforward event.
 // Triggers event for what note is being played.
 
+use std::mem;
+
 use bevy::color::palettes::css::WHITE;
 use bevy::color::palettes::tailwind::*;
 use bevy::prelude::*;
 use bevy::ui::{RelativeCursorPosition, Val::*};
 
+use bevy::utils::hashbrown::HashSet;
 use bevy_debug_text_overlay::OverlayPlugin;
 use sickle_ui_scaffold::drag_interaction::DragInteractionPlugin;
 use sickle_ui_scaffold::drop_interaction::{DropInteractionPlugin, DropZone};
@@ -20,10 +23,11 @@ use sickle_ui_scaffold::flux_interaction::{FluxInteractionPlugin, TrackedInterac
 use crate::screen::Screen;
 use crate::ui::prelude::*;
 
-mod interaction;
 mod notes;
 
-use notes::*;
+use notes::Note;
+
+use super::SequencerPlaying;
 
 pub(super) fn plugin(app: &mut App) {
     app.add_plugins((
@@ -41,7 +45,13 @@ pub(super) fn plugin(app: &mut App) {
 
     app.add_systems(Update, update_seek_bar.run_if(in_state(Screen::Playing)));
 
-    app.add_plugins(interaction::plugin);
+    app.add_systems(
+        Update,
+        (advance_play_pos, play_note)
+            .run_if(in_state(Screen::Playing).and_then(in_state(SequencerPlaying(true)))),
+    );
+
+    app.add_plugins(notes::plugin);
 }
 
 #[derive(Resource)]
@@ -171,7 +181,8 @@ fn update_seek_bar(
     //     return;
     // }
 
-    // subtract rect of sequencer from rect of track
+    // since the seek bar is a child of the sequencer and not a child of the track,
+    // we need to calculate position based on sequencer's reference frame.
 
     let sequencer_rect = {
         let Ok((seq, seq_clip, seq_gt)) = nodes.get(sequencer.id) else {
@@ -194,10 +205,24 @@ fn update_seek_bar(
         get_clipped_rect(track, track_gt, track_clip)
     };
 
-    let rel_track_x_min = (dbg!(track_rect.min) - dbg!(sequencer_rect.min)).x;
+    let rel_track_x_min = (track_rect.min - sequencer_rect.min).x;
 
     for mut style in seek_bar.iter_mut() {
-        style.left = Px(sequencer.play_pos / SEQUENCER_WIDTH_TIME * TRACK_WIDTH + dbg!(rel_track_x_min));
+        style.left = Px(sequencer.play_pos / SEQUENCER_WIDTH_TIME * TRACK_WIDTH + rel_track_x_min);
+    }
+}
+
+fn advance_play_pos(
+    time: Res<Time>,
+    mut sequencer: ResMut<Sequencer>,
+    mut playing_state: NextState<SequencerPlaying>,
+) {
+    let delta = time.delta_seconds();
+    sequencer.play_pos += delta;
+
+    if sequencer.play_pos > SEQUENCER_WIDTH_TIME {
+        sequencer.play_pos = 0.0;
+        playing_state.set(SequencerPlaying(false));
     }
 }
 
@@ -207,27 +232,25 @@ pub struct PlayEvent(pub Note);
 fn play_note(
     sequencer: Res<Sequencer>,
     mut events: EventWriter<PlayEvent>,
-    notes: Query<(&Note, &Style)>,
+    notes: Query<&Note>,
+    mut played_notes: Local<HashSet<Entity>>,
 ) {
+    // In order to prevent a note under the seek bar from being played repeatedly,
+    // we need to know what notes are being played.
+    // So, we keep a list of notes that are on the play position in the previous frame.
+
+    let last_played_notes = mem::replace(&mut *played_notes, HashSet::default());
+
+    let play_pos = sequencer.play_pos;
+
     for &id in &sequencer.notes {
-        if let Ok((note, style)) = notes.get(id) {
-            // hittest
-            let Val::Px(left) = style.left else {
-                debug!("Note {id:?} does not have `Style::left` in pixels");
-                continue;
-            };
-            let Val::Px(width) = style.width else {
-                debug!("Note {id:?} does not have `Style::width` in pixels");
-                continue;
-            };
-
-            let play_pos = sequencer.play_pos;
-
-            // ouch, are we going to hittest based on UI coordinates??
-            // terrible idea, but let's do it for now
-            // we should have a separate system that do logical rect calculation
-
-            events.send(PlayEvent(*note));
+        if let Ok(note) = notes.get(id) {
+            if play_pos > note.pos && play_pos < note.pos + note.width {
+                if !last_played_notes.contains(&id) {
+                    events.send(PlayEvent(*note));
+                }
+                played_notes.insert(id);
+            }
         }
     }
 }
