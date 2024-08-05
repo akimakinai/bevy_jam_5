@@ -40,7 +40,13 @@ pub fn plugin(app: &mut App) {
             .after(DraggableUpdate),
     );
 
-    app.add_systems(PostUpdate, set_initial_note_pos.before(UiSystem::Layout));
+    // When a note is added, set its initial position (convert time to pixels)
+    app.add_systems(
+        PostUpdate,
+        set_initial_note_pos
+            .run_if(in_state(Screen::Playing))
+            .before(UiSystem::Layout),
+    );
 }
 
 #[derive(Debug, Clone, Copy)]
