@@ -124,7 +124,6 @@ fn run_played_note(
                 ..default()
             },
         };
-
         // there may be a puzzle with multiple player characters...
         for mut controller in &mut player {
             controller.action(action.clone());

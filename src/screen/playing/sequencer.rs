@@ -103,8 +103,8 @@ fn enter_playing(mut commands: Commands) {
                         NodeBundle {
                             style: Style {
                                 position_type: PositionType::Absolute,
-                                // we need to get local rect of tracks
                                 height: Percent(100.0),
+                                width: Px(5.0),
                                 ..default()
                             },
                             z_index: ZIndex::Local(999),
@@ -208,9 +208,11 @@ fn update_seek_bar(
 
     let rel_track_x_min = (track_rect.min - sequencer_rect.min).x;
 
-    for mut style in seek_bar.iter_mut() {
-        style.left = Px(sequencer.play_pos / SEQUENCER_WIDTH_TIME * TRACK_WIDTH + rel_track_x_min);
-    }
+    let Ok(mut style) = seek_bar.get_single_mut() else {
+        debug!("Seek bar not found");
+        return;
+    };
+    style.left = Px(sequencer.play_pos / SEQUENCER_WIDTH_TIME * TRACK_WIDTH + rel_track_x_min);
 }
 
 fn advance_play_pos(
@@ -223,7 +225,7 @@ fn advance_play_pos(
 
     if sequencer.play_pos > SEQUENCER_WIDTH_TIME {
         sequencer.play_pos = 0.0;
-        playing_state.set(SequencerPlaying(false));
+        // TODO: playing_state.set(SequencerPlaying(false));
     }
 }
 
@@ -239,6 +241,10 @@ fn play_note(
     // In order to prevent a note under the seek bar from being played repeatedly,
     // we need to know what notes are being played.
     // So, we keep a list of notes that are on the play position in the previous frame.
+
+    // Ah, we need to keep sending Jump event while playing, instead of a single event for each note.
+    // Tnua handling duration of pressing jumps etc. seems nice and I want to use that.
+    // It should be easy: just use a Resource.
 
     let last_played_notes = mem::replace(&mut *played_notes, HashSet::default());
 
