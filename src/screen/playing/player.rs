@@ -7,7 +7,7 @@ use bevy_tnua::prelude::{
 use bevy_tnua_avian2d::TnuaAvian2dPlugin;
 
 use super::{
-    sequencer::{NoteKind, PlayEvent},
+    sequencer::{NoteKind, PlayingNotes},
     SequencerPlaying,
 };
 
@@ -112,18 +112,17 @@ fn spawn_wall(trigger: Trigger<OnAdd, Wall>, mut commands: Commands, coords: Que
 }
 
 fn run_played_note(
-    mut play_ev: EventReader<PlayEvent>,
+    playing_notes: Res<PlayingNotes>,
     mut player: Query<&mut TnuaController, With<Player>>,
 ) {
-    for ev in play_ev.read() {
-        let note = ev.0;
-
+    for &note in &playing_notes.0 {
         let action = match note.kind {
             NoteKind::Jump => TnuaBuiltinJump {
                 height: 32.0,
                 ..default()
             },
         };
+
         // there may be a puzzle with multiple player characters...
         for mut controller in &mut player {
             controller.action(action.clone());

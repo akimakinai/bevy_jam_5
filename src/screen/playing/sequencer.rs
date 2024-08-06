@@ -7,14 +7,11 @@
 // When the seek bar is dragged, emits rollback/rollforward event.
 // Triggers event for what note is being played.
 
-use std::mem;
-
 use bevy::color::palettes::css::WHITE;
 use bevy::color::palettes::tailwind::*;
 use bevy::prelude::*;
 use bevy::ui::{RelativeCursorPosition, Val::*};
 
-use bevy::utils::hashbrown::HashSet;
 use bevy_debug_text_overlay::OverlayPlugin;
 use sickle_ui_scaffold::drag_interaction::DragInteractionPlugin;
 use sickle_ui_scaffold::drop_interaction::{DropInteractionPlugin, DropZone};
@@ -27,6 +24,7 @@ mod notes;
 
 pub use notes::{Note, NoteKind};
 
+use super::player::Player;
 use super::SequencerPlaying;
 
 pub(super) fn plugin(app: &mut App) {
@@ -45,7 +43,6 @@ pub(super) fn plugin(app: &mut App) {
 
     app.add_systems(Update, update_seek_bar.run_if(in_state(Screen::Playing)));
 
-    app.add_event::<PlayEvent>();
     app.add_systems(
         Update,
         (advance_play_pos, play_note)
@@ -229,36 +226,30 @@ fn advance_play_pos(
     }
 }
 
-#[derive(Event)]
-pub struct PlayEvent(pub Note);
+#[derive(Resource, Debug)]
+pub struct PlayingNotes(pub Vec<Note>);
 
 fn play_note(
     sequencer: Res<Sequencer>,
-    mut events: EventWriter<PlayEvent>,
     notes: Query<&Note>,
-    mut played_notes: Local<HashSet<Entity>>,
+    mut played_notes: ResMut<PlayingNotes>,
 ) {
-    // In order to prevent a note under the seek bar from being played repeatedly,
-    // we need to know what notes are being played.
-    // So, we keep a list of notes that are on the play position in the previous frame.
-
-    // Ah, we need to keep sending Jump event while playing, instead of a single event for each note.
+    // We need to keep sending Jump event while playing, instead of a single event for each note.
     // Tnua handling duration of pressing jumps etc. seems nice and I want to use that.
     // It should be easy: just use a Resource.
 
-    let last_played_notes = mem::replace(&mut *played_notes, HashSet::default());
-
     let play_pos = sequencer.play_pos;
+
+    let mut playing = vec![];
 
     for &id in &sequencer.notes {
         if let Ok(note) = notes.get(id) {
             if play_pos > note.pos && play_pos < note.pos + note.width {
-                if !last_played_notes.contains(&id) {
-                    // TODO: don't play newly added note under the seek bar
-                    events.send(PlayEvent(*note));
-                }
-                played_notes.insert(id);
+                // TODO: don't play newly added note under the seek bar midway
+                playing.push(*note);
             }
         }
     }
+
+    *played_notes = PlayingNotes(playing);
 }
