@@ -88,7 +88,7 @@ impl Note {
             Interaction::None,
             TrackedInteraction::default(),
             Draggable::default(),
-            Droppable::default(),
+            Droppable,
             RelativeCursorPosition::default(),
             Note {
                 // TODO
@@ -176,7 +176,7 @@ fn note_drag(
 
                     // If the note is dropped outside of the track, remove it
                     if let Px(x) = style.left {
-                        if x < 0.0 || x > TRACK_WIDTH {
+                        if !(0.0..=TRACK_WIDTH).contains(&x) {
                             commands.entity(entity).despawn_recursive();
                             sequencer.notes.retain(|&id| id != entity);
                             // TODO: play sfx when note removed
@@ -281,10 +281,10 @@ fn note_move_inactive(
             return;
         };
 
-        if matches!(draggable.state, DragState::DragStart | DragState::Dragging) {
-            if parent.get() != note_drag.orig_track {
-                commands.entity(note_id).set_parent(note_drag.orig_track);
-            }
+        if matches!(draggable.state, DragState::DragStart | DragState::Dragging)
+            && parent.get() != note_drag.orig_track
+        {
+            commands.entity(note_id).set_parent(note_drag.orig_track);
         }
     }
 }

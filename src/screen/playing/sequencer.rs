@@ -24,7 +24,6 @@ mod notes;
 
 pub use notes::{Note, NoteKind};
 
-use super::player::Player;
 use super::SequencerPlaying;
 
 pub(super) fn plugin(app: &mut App) {
@@ -215,7 +214,7 @@ fn update_seek_bar(
 fn advance_play_pos(
     time: Res<Time>,
     mut sequencer: ResMut<Sequencer>,
-    mut playing_state: ResMut<NextState<SequencerPlaying>>,
+    playing_state: ResMut<NextState<SequencerPlaying>>,
 ) {
     let delta = time.delta_seconds();
     sequencer.play_pos += delta;
