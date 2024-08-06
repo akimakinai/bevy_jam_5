@@ -2,11 +2,14 @@ use avian2d::prelude::*;
 use bevy::prelude::*;
 use bevy_ecs_ldtk::prelude::*;
 use bevy_tnua::prelude::{
-    TnuaBuiltinWalk, TnuaController, TnuaControllerBundle, TnuaControllerPlugin,
+    TnuaBuiltinJump, TnuaBuiltinWalk, TnuaController, TnuaControllerBundle, TnuaControllerPlugin,
 };
 use bevy_tnua_avian2d::TnuaAvian2dPlugin;
 
-use super::SequencerPlaying;
+use super::{
+    sequencer::{NoteKind, PlayEvent},
+    SequencerPlaying,
+};
 
 pub(super) fn plugin(app: &mut App) {
     // app.observe(spawn_player);
@@ -25,14 +28,12 @@ pub(super) fn plugin(app: &mut App) {
     app.register_ldtk_int_cell::<WallBundle>(1)
         .observe(spawn_wall);
 
-    app.add_systems(
-        Update,
-        player_auto_movement.run_if(in_state(SequencerPlaying(true))),
-    );
+    app.add_systems(OnEnter(SequencerPlaying(true)), player_auto_movement);
+    app.add_systems(OnExit(SequencerPlaying(true)), player_auto_movement_stop);
 
     app.add_systems(
         Update,
-        player_auto_movement_stop.run_if(in_state(SequencerPlaying(false))),
+        run_played_note.run_if(in_state(SequencerPlaying(true))),
     );
 }
 
@@ -108,4 +109,25 @@ fn spawn_wall(trigger: Trigger<OnAdd, Wall>, mut commands: Commands, coords: Que
         Collider::rectangle(15.9, 15.9),
         Transform::from_translation(Vec3::new(coords.x as f32 * 16., coords.y as f32 * 16., 0.0)),
     ));
+}
+
+fn run_played_note(
+    mut play_ev: EventReader<PlayEvent>,
+    mut player: Query<&mut TnuaController, With<Player>>,
+) {
+    for ev in play_ev.read() {
+        let note = ev.0;
+
+        let action = match note.kind {
+            NoteKind::Jump => TnuaBuiltinJump {
+                height: 32.0,
+                ..default()
+            },
+        };
+
+        // there may be a puzzle with multiple player characters...
+        for mut controller in &mut player {
+            controller.action(action.clone());
+        }
+    }
 }

@@ -25,7 +25,7 @@ use crate::ui::prelude::*;
 
 mod notes;
 
-use notes::Note;
+pub use notes::{Note, NoteKind};
 
 use super::SequencerPlaying;
 
@@ -45,6 +45,7 @@ pub(super) fn plugin(app: &mut App) {
 
     app.add_systems(Update, update_seek_bar.run_if(in_state(Screen::Playing)));
 
+    app.add_event::<PlayEvent>();
     app.add_systems(
         Update,
         (advance_play_pos, play_note)
@@ -247,6 +248,7 @@ fn play_note(
         if let Ok(note) = notes.get(id) {
             if play_pos > note.pos && play_pos < note.pos + note.width {
                 if !last_played_notes.contains(&id) {
+                    // TODO: don't play newly added note under the seek bar
                     events.send(PlayEvent(*note));
                 }
                 played_notes.insert(id);
