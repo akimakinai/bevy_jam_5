@@ -42,6 +42,7 @@ pub(super) fn plugin(app: &mut App) {
 
     app.add_systems(Update, update_seek_bar.run_if(in_state(Screen::Playing)));
 
+    app.init_resource::<PlayingNotes>();
     app.add_systems(
         Update,
         (advance_play_pos, play_note)
@@ -158,7 +159,7 @@ fn exit_playing(mut commands: Commands) {
 }
 
 // What the play position, in seconds, will be if we seek fully from the left to the right.
-const SEQUENCER_WIDTH_TIME: f32 = 8.0;
+const TRACK_WIDTH_TIME: f32 = 8.0;
 
 fn get_clipped_rect(node: &Node, gt: &GlobalTransform, clip: Option<&CalculatedClip>) -> Rect {
     let rect = node.logical_rect(gt);
@@ -208,24 +209,24 @@ fn update_seek_bar(
         debug!("Seek bar not found");
         return;
     };
-    style.left = Px(sequencer.play_pos / SEQUENCER_WIDTH_TIME * TRACK_WIDTH + rel_track_x_min);
+    style.left = Px(sequencer.play_pos / TRACK_WIDTH_TIME * TRACK_WIDTH + rel_track_x_min);
 }
 
 fn advance_play_pos(
     time: Res<Time>,
     mut sequencer: ResMut<Sequencer>,
-    playing_state: ResMut<NextState<SequencerPlaying>>,
+    // mut playing_state: ResMut<NextState<SequencerPlaying>>,
 ) {
     let delta = time.delta_seconds();
     sequencer.play_pos += delta;
 
-    if sequencer.play_pos > SEQUENCER_WIDTH_TIME {
+    if sequencer.play_pos > TRACK_WIDTH_TIME {
         sequencer.play_pos = 0.0;
         // TODO: playing_state.set(SequencerPlaying(false));
     }
 }
 
-#[derive(Resource, Debug)]
+#[derive(Resource, Debug, Default)]
 pub struct PlayingNotes(pub Vec<Note>);
 
 fn play_note(

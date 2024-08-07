@@ -13,7 +13,7 @@ use crate::ui::prelude::*;
 
 use crate::screen::Screen;
 
-use super::{Sequencer, Track, SEQUENCER_WIDTH_TIME, TRACK_WIDTH};
+use super::{Sequencer, Track, TRACK_WIDTH_TIME, TRACK_WIDTH};
 
 pub fn plugin(app: &mut App) {
     app.register_type::<NoteDragged>();
@@ -61,11 +61,12 @@ pub struct Note {
     // this will be applied to Style::left on `Added<Note>`,
     // and during dragging in [`super::interaction`] module.
     pub pos: f32,
+    /// Width of this note in seconds.
     pub width: f32,
 }
 
 impl Note {
-    pub const DEFAULT_WIDTH: f32 = 100.0;
+    pub const DEFAULT_WIDTH: f32 = 1.0;
 
     pub fn spawn(spawner: &mut impl Spawn, pos: f32) -> EntityCommands {
         spawner.spawn((
@@ -78,7 +79,7 @@ impl Note {
                 },
             )
             .with_style(Style {
-                width: Px(Note::DEFAULT_WIDTH),
+                width: Px(Note::DEFAULT_WIDTH * TRACK_WIDTH / TRACK_WIDTH_TIME),
                 height: Percent(100.0),
                 position_type: PositionType::Absolute,
                 align_content: AlignContent::Center,
@@ -104,7 +105,7 @@ impl Note {
 fn set_initial_note_pos(mut added_notes: Query<(&Note, &mut Style), Added<Note>>) {
     for (note, mut style) in &mut added_notes {
         // A note is a child of a track, so left = 0 when pos = 0
-        let ui_pos = note.pos / SEQUENCER_WIDTH_TIME * TRACK_WIDTH;
+        let ui_pos = note.pos / TRACK_WIDTH_TIME * TRACK_WIDTH;
         style.left = Px(ui_pos);
     }
 }
@@ -141,10 +142,9 @@ fn track_interaction(
                 // cur_x is relative to the size of the track
                 // TODO: for a single click, spawn a note centered at the cursor,
                 // and for a drag, spawn a note with the width of the drag.
-                // TODO: Note::DEFAULT_WIDTH should be in seconds, not pixels
-                let pos = cur_x * SEQUENCER_WIDTH_TIME
-                    - Note::DEFAULT_WIDTH / 2.0 / TRACK_WIDTH * SEQUENCER_WIDTH_TIME;
-                let id = Note::spawn(child, pos).id();
+                let pos_sec = cur_x * TRACK_WIDTH_TIME
+                    - Note::DEFAULT_WIDTH * 0.5;
+                let id = Note::spawn(child, pos_sec).id();
                 sequencer.notes.push(id);
             });
         }

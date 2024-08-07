@@ -1,10 +1,15 @@
 use avian2d::prelude::*;
 use bevy::prelude::*;
+use bevy_debug_text_overlay::screen_print;
 use bevy_ecs_ldtk::prelude::*;
-use bevy_tnua::prelude::{
-    TnuaBuiltinJump, TnuaBuiltinWalk, TnuaController, TnuaControllerBundle, TnuaControllerPlugin,
+use bevy_tnua::{
+    prelude::{
+        TnuaBuiltinJump, TnuaBuiltinWalk, TnuaController, TnuaControllerBundle,
+        TnuaControllerPlugin,
+    },
+    TnuaUserControlsSystemSet,
 };
-use bevy_tnua_avian2d::TnuaAvian2dPlugin;
+use bevy_tnua_avian2d::{TnuaAvian2dPlugin, TnuaAvian2dSensorShape};
 
 use super::{
     sequencer::{NoteKind, PlayingNotes},
@@ -28,12 +33,25 @@ pub(super) fn plugin(app: &mut App) {
     app.register_ldtk_int_cell::<WallBundle>(1)
         .observe(spawn_wall);
 
-    app.add_systems(OnEnter(SequencerPlaying(true)), player_auto_movement);
-    app.add_systems(OnExit(SequencerPlaying(true)), player_auto_movement_stop);
-
     app.add_systems(
         Update,
-        run_played_note.run_if(in_state(SequencerPlaying(true))),
+        run_played_note
+            .run_if(in_state(SequencerPlaying(true)))
+            .in_set(TnuaUserControlsSystemSet),
+    );
+
+    // Tnua control must be in the Update schedule
+    app.add_systems(
+        Update,
+        (
+            player_auto_movement.run_if(
+                state_changed::<SequencerPlaying>.and_then(in_state(SequencerPlaying(true))),
+            ),
+            player_auto_movement_stop.run_if(
+                state_changed::<SequencerPlaying>.and_then(in_state(SequencerPlaying(false))),
+            ),
+        )
+            .in_set(TnuaUserControlsSystemSet),
     );
 }
 
@@ -45,12 +63,15 @@ fn spawn_player(trigger: Trigger<OnAdd, Player>, mut commands: Commands) {
 
     // note: at this point, bevy_ecs_ldtk have not added Transform yet
 
+    let collider = Collider::round_rectangle(13.0, 13.0, 1.0);
+
     commands
         .entity(entity)
         .insert((
             RigidBody::Dynamic,
-            Collider::round_rectangle(14.0, 14.0, 1.0),
+            collider.clone(),
             TnuaControllerBundle::default(),
+            TnuaAvian2dSensorShape(collider),
         ))
         .with_children(|children| {
             children.spawn(SpriteBundle {
@@ -67,8 +88,8 @@ fn spawn_player(trigger: Trigger<OnAdd, Player>, mut commands: Commands) {
 fn player_auto_movement(mut player_query: Query<&mut TnuaController, With<Player>>) {
     for mut controller in &mut player_query {
         controller.basis(TnuaBuiltinWalk {
-            desired_velocity: Vec3::new(20.0, 0.0, 0.0),
-            float_height: 8.0,
+            // desired_velocity: Vec3::new(20.0, 0.0, 0.0),
+            float_height: 4.0,
             max_slope: std::f32::consts::FRAC_PI_4,
             ..default()
         });
@@ -79,7 +100,7 @@ fn player_auto_movement_stop(mut player_query: Query<&mut TnuaController, With<P
     for mut controller in &mut player_query {
         controller.basis(TnuaBuiltinWalk {
             desired_velocity: Vec3::new(0.0, 0.0, 0.0),
-            float_height: 2.0,
+            float_height: 4.0,
             max_slope: std::f32::consts::FRAC_PI_4,
             ..default()
         });
@@ -115,7 +136,8 @@ fn run_played_note(
     playing_notes: Res<PlayingNotes>,
     mut player: Query<&mut TnuaController, With<Player>>,
 ) {
-    for &note in &playing_notes.0 {
+    for note in &playing_notes.0 {
+        debug!("Playing note: {:?}", note);
         let action = match note.kind {
             NoteKind::Jump => TnuaBuiltinJump {
                 height: 32.0,

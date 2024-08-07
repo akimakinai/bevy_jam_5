@@ -8,7 +8,7 @@ use bevy::{
     asset::AssetMetaCheck,
     audio::{AudioPlugin, Volume},
     log::LogPlugin,
-    prelude::*,
+    prelude::*, window::WindowResolution,
 };
 
 pub struct AppPlugin;
@@ -35,10 +35,11 @@ impl Plugin for AppPlugin {
             })
             .set(WindowPlugin {
                 primary_window: Window {
-                    title: "Bevy Jam 5".to_string(),
+                    title: "rollbot".to_string(),
                     canvas: Some("#bevy".to_string()),
                     fit_canvas_to_parent: true,
                     prevent_default_event_handling: true,
+                    resolution: WindowResolution::new(640.0, 320.0).with_scale_factor_override(0.5),
                     ..default()
                 }
                 .into(),
