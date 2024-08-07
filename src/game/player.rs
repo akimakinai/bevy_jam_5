@@ -1,6 +1,6 @@
 use avian2d::prelude::*;
 use bevy::prelude::*;
-use bevy_debug_text_overlay::screen_print;
+// use bevy_debug_text_overlay::screen_print;
 use bevy_ecs_ldtk::prelude::*;
 use bevy_tnua::{
     prelude::{
@@ -11,7 +11,7 @@ use bevy_tnua::{
 };
 use bevy_tnua_avian2d::{TnuaAvian2dPlugin, TnuaAvian2dSensorShape};
 
-use super::{
+use crate::screen::playing::{
     sequencer::{NoteKind, PlayingNotes},
     SequencerPlaying,
 };
@@ -21,7 +21,7 @@ pub(super) fn plugin(app: &mut App) {
 
     app.add_plugins((
         PhysicsPlugins::default(),
-        PhysicsDebugPlugin::default(),
+        // PhysicsDebugPlugin::default(),
         TnuaControllerPlugin::default(),
         TnuaAvian2dPlugin::default(),
     ))
@@ -76,7 +76,7 @@ fn spawn_player(trigger: Trigger<OnAdd, Player>, mut commands: Commands) {
         .with_children(|children| {
             children.spawn(SpriteBundle {
                 sprite: Sprite {
-                    color: Color::srgb(0.0, 1.0, 0.0),
+                    color: Color::srgba(0.0, 1.0, 0.0, 0.5),
                     custom_size: Some(Vec2::splat(16.0)),
                     ..default()
                 },
@@ -88,7 +88,7 @@ fn spawn_player(trigger: Trigger<OnAdd, Player>, mut commands: Commands) {
 fn player_auto_movement(mut player_query: Query<&mut TnuaController, With<Player>>) {
     for mut controller in &mut player_query {
         controller.basis(TnuaBuiltinWalk {
-            // desired_velocity: Vec3::new(20.0, 0.0, 0.0),
+            desired_velocity: Vec3::new(40.0, 0.0, 0.0),
             float_height: 4.0,
             max_slope: std::f32::consts::FRAC_PI_4,
             ..default()
@@ -127,6 +127,8 @@ fn spawn_wall(trigger: Trigger<OnAdd, Wall>, mut commands: Commands, coords: Que
 
     commands.entity(entity).insert((
         RigidBody::Static,
+        // setting 16.0 as the size of the wall will upset the physics engine
+        // TODO: merge consecutive walls
         Collider::rectangle(15.9, 15.9),
         Transform::from_translation(Vec3::new(coords.x as f32 * 16., coords.y as f32 * 16., 0.0)),
     ));
@@ -137,10 +139,10 @@ fn run_played_note(
     mut player: Query<&mut TnuaController, With<Player>>,
 ) {
     for note in &playing_notes.0 {
-        debug!("Playing note: {:?}", note);
+        // debug!("Playing note: {:?}", note);
         let action = match note.kind {
             NoteKind::Jump => TnuaBuiltinJump {
-                height: 32.0,
+                height: 38.0,
                 ..default()
             },
         };

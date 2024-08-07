@@ -5,13 +5,12 @@ use bevy::{input::common_conditions::input_just_pressed, prelude::*};
 use super::Screen;
 use crate::game::spawn::level::SpawnLevel;
 
-mod player;
-mod sequencer;
+pub mod sequencer;
 
 pub(super) fn plugin(app: &mut App) {
     app.init_state::<SequencerPlaying>();
 
-    app.add_plugins((sequencer::plugin, player::plugin));
+    app.add_plugins(sequencer::plugin);
 
     app.add_systems(OnEnter(Screen::Playing), enter_playing);
     app.add_systems(OnExit(Screen::Playing), exit_playing);
@@ -25,7 +24,7 @@ pub(super) fn plugin(app: &mut App) {
 
 // defined here because it's used by both the sequencer and player systems
 #[derive(States, Debug, Hash, PartialEq, Eq, Clone, Default)]
-struct SequencerPlaying(bool);
+pub struct SequencerPlaying(pub bool);
 
 fn enter_playing(
     mut commands: Commands,

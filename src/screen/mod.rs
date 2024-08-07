@@ -2,7 +2,7 @@
 
 mod credits;
 mod loading;
-mod playing;
+pub mod playing;
 mod splash;
 mod title;
 

@@ -10,6 +10,7 @@ use bevy::{
     log::LogPlugin,
     prelude::*, window::WindowResolution,
 };
+use bevy_video_glitch::{VideoGlitchPlugin, VideoGlitchSettings};
 
 pub struct AppPlugin;
 
@@ -59,6 +60,8 @@ impl Plugin for AppPlugin {
         };
         app.add_plugins(def);
 
+        app.add_plugins(VideoGlitchPlugin);
+
         // Add other plugins.
         app.add_plugins((game::plugin, screen::plugin, ui::plugin));
 
@@ -92,5 +95,10 @@ fn spawn_camera(mut commands: Commands) {
         // [ui node outlines](https://bevyengine.org/news/bevy-0-14/#ui-node-outline-gizmos)
         // for debugging. So it's good to have this here for future-proofing.
         IsDefaultUiCamera,
+        // TODO: add only during unwinding
+        VideoGlitchSettings {
+            intensity: 0.1,
+            ..default()
+        }
     ));
 }
