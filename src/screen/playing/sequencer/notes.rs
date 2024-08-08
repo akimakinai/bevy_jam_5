@@ -3,17 +3,19 @@ use bevy::ecs::system::EntityCommands;
 use bevy::prelude::*;
 use bevy::ui::{RelativeCursorPosition, UiSystem, Val::*};
 use bevy_debug_text_overlay::screen_print;
+use rand::seq;
 use sickle_ui_scaffold::prelude::{
     DragState, Draggable, DraggableUpdate, DropPhase, DropZone, Droppable, FluxInteraction,
     FluxInteractionUpdate, TrackedInteraction,
 };
 use std::ops::Deref;
 
+use crate::screen::playing::SequencerState;
 use crate::ui::prelude::*;
 
 use crate::screen::Screen;
 
-use super::{Sequencer, Track, TRACK_WIDTH_TIME, TRACK_WIDTH};
+use super::{Sequencer, Track, TRACK_WIDTH, TRACK_WIDTH_TIME};
 
 pub fn plugin(app: &mut App) {
     app.register_type::<NoteDragged>();
@@ -25,7 +27,7 @@ pub fn plugin(app: &mut App) {
         Update,
         track_interaction
             .after(FluxInteractionUpdate)
-            .run_if(in_state(Screen::Playing)),
+            .run_if(in_state(Screen::Playing).and_then(not(in_state(SequencerState::Seeking)))),
     );
 
     // Handles dragging notes
@@ -119,6 +121,8 @@ fn track_interaction(
         (With<Track>, Changed<FluxInteraction>),
     >,
     mut sequencer: ResMut<Sequencer>,
+    mut seq_state: Res<State<SequencerState>>,
+    mut seq_state_next: ResMut<NextState<SequencerState>>,
 ) {
     let any_notes_interacted = notes
         .iter()
@@ -142,11 +146,14 @@ fn track_interaction(
                 // cur_x is relative to the size of the track
                 // TODO: for a single click, spawn a note centered at the cursor,
                 // and for a drag, spawn a note with the width of the drag.
-                let pos_sec = cur_x * TRACK_WIDTH_TIME
-                    - Note::DEFAULT_WIDTH * 0.5;
+                let pos_sec = cur_x * TRACK_WIDTH_TIME - Note::DEFAULT_WIDTH * 0.5;
                 let id = Note::spawn(child, pos_sec).id();
                 sequencer.notes.push(id);
             });
+
+            if *seq_state.get() == SequencerState::Stopped {
+                seq_state_next.set(SequencerState::Playing);
+            }
         }
     }
 }

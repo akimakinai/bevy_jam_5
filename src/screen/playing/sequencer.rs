@@ -24,7 +24,7 @@ mod notes;
 
 pub use notes::{Note, NoteKind};
 
-use super::SequencerPlaying;
+use super::SequencerState;
 
 pub(super) fn plugin(app: &mut App) {
     app.add_plugins((
@@ -45,8 +45,7 @@ pub(super) fn plugin(app: &mut App) {
     app.init_resource::<PlayingNotes>();
     app.add_systems(
         Update,
-        (advance_play_pos, play_note)
-            .run_if(in_state(Screen::Playing).and_then(in_state(SequencerPlaying(true)))),
+        (advance_play_pos, play_note).run_if(in_state(SequencerState::Playing)),
     );
 
     app.add_plugins(notes::plugin);
@@ -215,14 +214,14 @@ fn update_seek_bar(
 fn advance_play_pos(
     time: Res<Time>,
     mut sequencer: ResMut<Sequencer>,
-    // mut playing_state: ResMut<NextState<SequencerPlaying>>,
+    mut playing_state: ResMut<NextState<SequencerState>>,
 ) {
     let delta = time.delta_seconds();
     sequencer.play_pos += delta;
 
     if sequencer.play_pos > TRACK_WIDTH_TIME {
         sequencer.play_pos = 0.0;
-        // TODO: playing_state.set(SequencerPlaying(false));
+        playing_state.set(SequencerState::Seeking);
     }
 }
 
@@ -234,9 +233,8 @@ fn play_note(
     notes: Query<&Note>,
     mut played_notes: ResMut<PlayingNotes>,
 ) {
-    // We need to keep sending Jump event while playing, instead of a single event for each note.
-    // Tnua handling duration of pressing jumps etc. seems nice and I want to use that.
-    // It should be easy: just use a Resource.
+    // Uses a resource because we need to keep sending actions to tnua,
+    // instead of a single event for each note.
 
     let play_pos = sequencer.play_pos;
 

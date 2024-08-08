@@ -8,7 +8,8 @@ use crate::game::spawn::level::SpawnLevel;
 pub mod sequencer;
 
 pub(super) fn plugin(app: &mut App) {
-    app.init_state::<SequencerPlaying>();
+    // Sub-state of Screen::Playing
+    app.add_sub_state::<SequencerState>();
 
     app.add_plugins(sequencer::plugin);
 
@@ -22,21 +23,15 @@ pub(super) fn plugin(app: &mut App) {
     );
 }
 
-// defined here because it's used by both the sequencer and player systems
-#[derive(States, Debug, Hash, PartialEq, Eq, Clone, Default)]
-pub struct SequencerPlaying(pub bool);
-
 fn enter_playing(
     mut commands: Commands,
     mut proj: Query<&mut OrthographicProjection>,
-    mut seq_state: ResMut<NextState<SequencerPlaying>>,
+    mut seq_state: ResMut<NextState<SequencerState>>,
 ) {
     commands.trigger(SpawnLevel);
 
     let mut proj = proj.single_mut();
     proj.scale = 0.5;
-
-    seq_state.set(SequencerPlaying(true));
 }
 
 fn exit_playing(mut proj: Query<&mut OrthographicProjection>) {
@@ -46,4 +41,27 @@ fn exit_playing(mut proj: Query<&mut OrthographicProjection>) {
 
 fn return_to_title_screen(mut next_screen: ResMut<NextState<Screen>>) {
     next_screen.set(Screen::Title);
+}
+
+// This game was about playing a sequencer multiple times to solve puzzles.
+// Now I don't think this is a good idea. A player needs to wait too long while just watching the sequencer play.
+// Instead, let's make the all replayed sequencers play at the same time.
+// No more "cycles", but OK. Not in time with the jam anyway.
+
+// During seeking, use VideoGlitchSettings to simulate a VHS tape being rewound or fast-forwarded.
+// Maybe add tween to intensity of the glitch.
+
+#[derive(SubStates, Debug, Hash, PartialEq, Eq, Clone, Default)]
+#[source(Screen = Screen::Playing)]
+pub enum SequencerState {
+    /// Playing the sequencer
+    // If the user added a note during play, go to Seeking state and unwind play time to where the note is added
+    Playing,
+    /// Seeking animation is playing
+    // does not respond to UI interaction?
+    // Seeking to where?
+    Seeking,
+    /// Sequencer stopped initially. Transitions to `Playing` state once the user adds the first note.
+    #[default]
+    Stopped,
 }

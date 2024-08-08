@@ -13,7 +13,7 @@ use bevy_tnua_avian2d::{TnuaAvian2dPlugin, TnuaAvian2dSensorShape};
 
 use crate::screen::playing::{
     sequencer::{NoteKind, PlayingNotes},
-    SequencerPlaying,
+    SequencerState,
 };
 
 pub(super) fn plugin(app: &mut App) {
@@ -36,7 +36,7 @@ pub(super) fn plugin(app: &mut App) {
     app.add_systems(
         Update,
         run_played_note
-            .run_if(in_state(SequencerPlaying(true)))
+            .run_if(in_state(SequencerState::Playing))
             .in_set(TnuaUserControlsSystemSet),
     );
 
@@ -45,10 +45,10 @@ pub(super) fn plugin(app: &mut App) {
         Update,
         (
             player_auto_movement.run_if(
-                state_changed::<SequencerPlaying>.and_then(in_state(SequencerPlaying(true))),
+                state_changed::<SequencerState>.and_then(in_state(SequencerState::Playing)),
             ),
             player_auto_movement_stop.run_if(
-                state_changed::<SequencerPlaying>.and_then(in_state(SequencerPlaying(false))),
+                state_changed::<SequencerState>.and_then(not(in_state(SequencerState::Playing))),
             ),
         )
             .in_set(TnuaUserControlsSystemSet),
